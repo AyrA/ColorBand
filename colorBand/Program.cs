@@ -7,152 +7,86 @@ using System.Diagnostics;
 using System.IO.Compression;
 using colorBand.Properties;
 using AyrA.IO;
+using System.Windows.Forms;
 
 namespace colorBand
 {
-    public struct StatusLine
-    {
-        public int frame;
-        public double fps, speed;
-        public TimeSpan Time;
-
-        public StatusLine(string Line)
-        {
-            bool skip = false;
-            string Trimmed = string.Empty;
-
-            frame = 0;
-            fps = speed = 0.0;
-            Time = new TimeSpan(0L);
-
-            if (Line.StartsWith("frame="))
-            {
-                foreach (char c in Line.Trim())
-                {
-                    if (skip)
-                    {
-                        if (c != ' ')
-                        {
-                            Trimmed += c;
-                            skip = false;
-                        }
-                    }
-                    else
-                    {
-                        if (c == '=')
-                        {
-                            skip = true;
-                        }
-                        Trimmed += c;
-                    }
-                }
-                foreach (string Part in Trimmed.Split(' '))
-                {
-                    if (Part.Contains("="))
-                    {
-                        switch (Part.Split('=')[0])
-                        {
-                            case "time":
-                                string[] Segments = Part.Split('=')[1].Split(':');
-
-                                if (Segments.Length == 3)
-                                {
-                                    Time = new TimeSpan(
-                                        TryInt(Segments[0], 0),
-                                        TryInt(Segments[1], 0),
-                                        TryInt(Segments[2].Split('.')[0], 0));
-                                }
-
-                                break;
-                            case "frame":
-                                int.TryParse(Part.Split('=')[1], out frame);
-                                break;
-                            case "fps":
-                                double.TryParse(Part.Split('=')[1], out fps);
-                                break;
-                            case "speed":
-                                double.TryParse(Part.Split('=')[1].Trim('x'), out speed);
-                                break;
-                        }
-                    }
-                }
-            }
-        }
-
-        private int TryInt(string s, int Default)
-        {
-            int i = 0;
-            return int.TryParse(s, out i) ? i : Default;
-        }
-    }
-
     public class Program
     {
-        /// <summary>
-        /// Command line for FFMPEG.
-        /// Explanation: takes video input and renders it with 1 fps and downscaled to a single pixel to an array of png files
-        /// </summary>
-        const string CMDLINE = "-i \"{0}\" -lavfi fps=1,scale=1:{2}:flags=lanczos \"{1}\\%06d.png\"";
-
         /// <summary>
         /// Main entry of Application
         /// </summary>
         /// <param name="args">Command line arguments</param>
+        [STAThread]
         static void Main(string[] args)
         {
+#if DEBUG
+            args = new string[]
+            {
+                @"C:\Temp\media\Sim City SNES TAS (Tool Assisted Speedrun) - last input 06_52.09 _ 600k people 47_00-2g6uPk-A1HY.mp4",
+                @"C:\Temp\Band.png"
+            };
+#endif
+            //Show Help and exit if requested
+            if (HasHelp(args))
+            {
+                PrintHelp();
+                return;
+            }
+            //Show UI if no Command line arguments given
+            if (args.Length == 0)
+            {
+                ShowUI();
+                return;
+            }
+
+            //Parse Arguments
+            Arguments A=ParseArgs(args);
+            if (!A.Valid)
+            {
+                return;
+            }
+
             Color[] Colors;
 
-            string TempDir = GetTempDir("frameband");
+            string TempDir = Tools.GetTempDir("frameband");
             string FFmpegFile = Path.Combine(TempDir, "ffmpeg.exe");
-#if DEBUG
-            //in debug mode I use hardcoded information because lazy.
-            //The source is a Youtube video with the ID 2g6uPk-A1HY
-            string VideoFile = @"C:\Temp\media\Sim City SNES TAS (Tool Assisted Speedrun) - last input 06_52.09 _ 600k people 47_00-2g6uPk-A1HY.mp4";
-            string OutputFile = @"C:\temp\band.png";
-            bool SingleColor = false;
-            int Height = 240;
-#else
-            string VideoFile = Ask("Source video file").Trim('"');
-            string OutputFile = Ask("Destination image file").Trim('"');
-            int Height = 0;
-            while (!int.TryParse(Ask("Image Height"), out Height) || Height < 1) ;
-            bool SingleColor = Ask("Use single color [y/n]").ToLower() == "y";
-#endif
-            Console.Write("Extracting FFmpeg...");
-            WriteEncoder(TempDir);
-            Console.WriteLine("[DONE]");
+
+            Console.Error.Write("Extracting FFmpeg...");
+            Tools.WriteEncoder(TempDir);
+            Console.Error.WriteLine("[DONE]");
 
             DateTime Start = DateTime.Now;
 
             //Generate single frames into PNG
             //Note: check if input is a video with at least 1 frame at all.
-            CreateImages(VideoFile, TempDir, FFmpegFile, SingleColor ? 1 : Height);
+            CreateImages(A.InputFile, TempDir, FFmpegFile, A.SingleColor ? 1 : A.Height);
 
             DateTime VideoGenerated = DateTime.Now;
 
-            if (SingleColor)
+            if (A.SingleColor)
             {
                 //Extract color information from the PNG images.
                 //GetFiles is rather slow, especially for a large number of files,
                 //but it is certainly easier to use than manually using the Windows API
-                Colors = ExtractColorFromPixel(Directory.GetFiles(TempDir, "*.png"));
+                Colors = Tools.ExtractColorFromPixel(Directory.GetFiles(TempDir, "*.png"));
 
 
                 //It is possible, that no colors were extracted,
                 //for example if the input is an audio file.
                 if (Colors.Length > 0)
                 {
-                    RenderBand(Colors, OutputFile, Height);
+                    Tools.RenderBand(Colors, A.OutputFile, A.Height);
                 }
                 else
                 {
                     //Probably invalid video file
-                    Console.WriteLine("No frames were extracted");
+                    Console.Error.WriteLine("No frames were extracted");
                 }
             }
             else
             {
-                JoinImages(Directory.GetFiles(TempDir, "*.png"), OutputFile);
+                Tools.JoinImages(Directory.GetFiles(TempDir, "*.png"), A.OutputFile);
             }
 
             //Remove temporary PNG files.
@@ -165,7 +99,7 @@ namespace colorBand
             TimeSpan tsVideo = VideoGenerated.Subtract(Start);
             TimeSpan tsImage = DateTime.Now.Subtract(VideoGenerated);
 
-            Console.WriteLine(@"Done. Durations:
+            Console.Error.WriteLine(@"Done. Durations:
 Total: {0:00}:{1:00}:{2:00}
 Video: {3:00}:{4:00}:{5:00}
 Image: {6:00}:{7:00}:{8:00}",
@@ -183,61 +117,6 @@ Image: {6:00}:{7:00}:{8:00}",
 #endif
         }
 
-        private static void WriteEncoder(string Dir)
-        {
-            using(MemoryStream MS=new MemoryStream(Resources.blob,false))
-            {
-                Compressor.Decompress(Dir, MS);
-            }
-        }
-
-        /// <summary>
-        /// Renders colors into a frame band
-        /// </summary>
-        /// <param name="Colors">List of colors</param>
-        /// <param name="DestinationFile">Destination image file name</param>
-        /// <param name="Height">Height of band</param>
-        private static void RenderBand(Color[] Colors, string DestinationFile, int Height)
-        {
-            using (Bitmap Output = new Bitmap(Colors.Length, Height))
-            {
-                //if height is 1, then use SetPixel
-                if (Height == 1)
-                {
-                    for (int i = 0; i < Colors.Length; i++)
-                    {
-                        Output.SetPixel(i, 0, Colors[i]);
-                        //This actually slows down the application quite a lot.
-                        Console.Write('-');
-                    }
-                }
-                else
-                {
-                    using (Graphics G = Graphics.FromImage(Output))
-                    {
-                        //Note: Setting G.InterpolationMode to a "cheap" value has no effect,
-                        //as it is only used for scaling.
-                        //Creating a 1 pixel high image and then scale the height up does not increases the speed.
-                        for (int i = 0; i < Colors.Length; i++)
-                        {
-                            //Why is this an IDisposable?
-                            using (Pen P = new Pen(Colors[i]))
-                            {
-                                //Drawing a line is by far faster than setting individual pixels.
-                                G.DrawLine(P, new Point(i, 0), new Point(i, Height - 1));
-                                //This actually slows down the application quite a lot.
-                                Console.Write('-');
-                            }
-                        }
-                    }
-                }
-                //This detects the image format from the extension
-                //See System.Drawing.Imaging.ImageFormat enumeration for supported types.
-                Output.Save(DestinationFile);
-                Console.WriteLine();
-            }
-        }
-
         /// <summary>
         /// Create an array of frame images from a video file
         /// </summary>
@@ -247,15 +126,15 @@ Image: {6:00}:{7:00}:{8:00}",
         /// <param name="Height">Height of generated frame bands.</param>
         private static void CreateImages(string Video, string ImagePath, string FFmpeg, int Height)
         {
-            Console.WriteLine("Press [q] to abort processing and use existing frames");
-            using (Process P = Process.Start(new ProcessStartInfo(FFmpeg, string.Format(CMDLINE, Video, ImagePath, Height))
-                {
-                    CreateNoWindow = true,
-                    RedirectStandardError = true,
-                    RedirectStandardInput = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                }))
+            VideoInfo VI = Tools.GetVideoInfo(Video);
+            if (Height < 1)
+            {
+                Height = VI.Resolution.Height;
+            }
+            DateTime Start = DateTime.Now;
+
+            Console.Error.WriteLine("Press [q] to abort processing and use existing frames");
+            using (Process P = Tools.BeginConversion(Video, ImagePath, Height))
             {
                 using (StreamReader SR = P.StandardError)
                 {
@@ -263,18 +142,24 @@ Image: {6:00}:{7:00}:{8:00}",
                     int Y = Console.CursorTop;
                     while (!SR.EndOfStream)
                     {
-                        if (Console.KeyAvailable && Console.ReadKey().Key == ConsoleKey.Q)
+                        if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Q)
                         {
                             P.StandardInput.WriteLine("q");
                         }
                         SL = new StatusLine(SR.ReadLine());
-                        if (SL.frame > 0)
+                        TimeSpan Estimate = new TimeSpan(0, 0, (int)(VI.Duration.TotalSeconds / SL.Speed));
+                        //This creates a timespan with the milliseconds cut out of.
+                        TimeSpan CurrentTime = new TimeSpan(0,0,(int)((DateTime.Now.Ticks-Start.Ticks)/10000000L));
+
+                        if (SL.Frame > 0)
                         {
                             Console.SetCursorPosition(0, Y);
-                            Console.WriteLine(@"Time  : {0}
-FPS   : {1}
-Speed : {2}
-Frames: {3}",SL.Time,SL.fps,SL.speed,SL.frame);
+                            Console.Error.WriteLine(@"Time    : {0}
+Speed   : {1,-6}
+Frames  : {2,-6}
+
+Estimate: {3}
+Current : {4}", SL.Time, SL.Speed, SL.Frame, Estimate, CurrentTime);
                         }
                     }
                 }
@@ -285,70 +170,136 @@ Frames: {3}",SL.Time,SL.fps,SL.speed,SL.frame);
         }
 
         /// <summary>
-        /// Extracts Color information from the top left pixel
+        /// Scans arguments for common help requests
         /// </summary>
-        /// <param name="Files">List of files</param>
-        /// <returns>List of pixel colors</returns>
-        private static Color[] ExtractColorFromPixel(string[] Files)
+        /// <param name="Args">Arguments</param>
+        /// <returns>True, if help requested</returns>
+        private static bool HasHelp(string[] Args)
         {
-            List<Color> Colors = new List<Color>();
-            foreach (string s in Files)
+            foreach (string Arg in Args)
             {
-                Bitmap I = null;
-                try
+                if (Arg.ToLower() == "--help" ||
+                    Arg.ToLower() == "/h" ||
+                    Arg == "/?" ||
+                    Arg == "-?")
                 {
-                    //Ironically Bitmap.FromFile comes from the Image class and will return an Image object,
-                    //but it is fully compatible with the Bitmap type so we just cast.
-                    I = (Bitmap)Bitmap.FromFile(s);
-                }
-                catch
-                {
-                    //I never had this happen but better add an error resolver.
-                    //In this case, we just ignore that frame.
-                    Console.Write('X');
-                    continue;
-                }
-                using (I)
-                {
-                    //Extract image color
-                    Colors.Add(I.GetPixel(0, 0));
-                    //This actually slows down the application quite a lot.
-                    Console.Write('.');
+                    return true;
                 }
             }
-            Console.WriteLine();
-            return Colors.ToArray();
+            return false;
         }
 
         /// <summary>
-        /// Joins an array of images horizontally
+        /// Print Help message
         /// </summary>
-        /// <param name="Files">List of images</param>
-        /// <param name="OutputFile">Destination File</param>
-        private static void JoinImages(string[] Files, string OutputFile)
+        private static void PrintHelp()
         {
-            int x = 0;
-            int Height = 0;
-            using (Image I = Image.FromFile(Files[0]))
+            Console.Error.WriteLine(@"ColorBand.exe <InputFile> [OutputFile] [Height] [/s]
+
+InputFile   - Soure video file to extract frames
+OutputFile  - Destination file to write color band. If not specified,
+              The band is saved in the InputFile directory
+Height      - Height of color band.
+              If not specified, it uses the video height.
+/s          - If specified, reduces each frame to a single pixel instead of
+              a line. Not faster. Just looks differently");
+        }
+
+        /// <summary>
+        /// Parses command line argument into formatted structure
+        /// </summary>
+        /// <param name="Args">Raw arguments</param>
+        /// <returns>Command line arguments structure</returns>
+        private static Arguments ParseArgs(string[] Args)
+        {
+            Arguments A = new Arguments()
             {
-                Height = I.Height;
-            }
-            using (Bitmap B = new Bitmap(Files.Length, Height))
+                InputFile = null,
+                OutputFile = null,
+                SingleColor = false,
+                Height = 0,
+                Valid = true
+            };
+            bool PNGSet = false;
+
+            foreach (string Arg in Args)
             {
-                using (Graphics G = Graphics.FromImage(B))
+                switch (Arg.ToLower())
                 {
-                    foreach(string Name in Files)
-                    {
-                        using (Image I = Image.FromFile(Name))
+                    case "/s":
+                        A.SingleColor = true;
+                        break;
+                    default:
+                        //if integer, assume it is the height
+                        if (Tools.IsInt(Arg))
                         {
-                            G.DrawImageUnscaled(I, new Point(x++, 0));
+                            if (int.Parse(Arg) > 0)
+                            {
+                                if (A.Height == 0)
+                                {
+                                    A.Height = int.Parse(Arg);
+                                }
+                                else
+                                {
+                                    Console.Error.WriteLine("Height has been specified twice");
+                                    A.Valid = false;
+                                    return A;
+                                }
+                            }
+                            else
+                            {
+                                Console.Error.WriteLine("Height must be bigger than 0");
+                                A.Valid = false;
+                                return A;
+                            }
                         }
-                        Console.Write('-');
-                    }
+                        else
+                        {
+                            //either input or output file
+                            if (A.InputFile == null)
+                            {
+                                //First file is input file
+                                A.InputFile = Arg;
+                                if (File.Exists(Arg))
+                                {
+                                    //automatically set output file sot it becomes an optional argument
+                                    A.OutputFile = Tools.SwapExt(Arg, "png");
+                                }
+                                else
+                                {
+                                    Console.Error.WriteLine("InputFile does not exists or is inaccessible");
+                                    A.Valid = false;
+                                    return A;
+                                }
+                            }
+                            else if (!PNGSet)
+                            {
+                                //second file is output file
+                                PNGSet = true;
+                                try
+                                {
+                                    File.Create(Arg).Close();
+                                    File.Delete(Arg);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.Error.WriteLine("Can't create output file. Error: {0}", ex.Message);
+                                    A.Valid = false;
+                                    return A;
+                                }
+                                A.OutputFile = Arg;
+                            }
+                            else
+                            {
+                                Console.Error.WriteLine("More than two files specified");
+                                A.Valid = false;
+                                return A;
+                            }
+                        }
+                        break;
                 }
-                B.Save(OutputFile);
-                Console.WriteLine();
             }
+            return A;
         }
 
         /// <summary>
@@ -363,27 +314,21 @@ Frames: {3}",SL.Time,SL.fps,SL.speed,SL.frame);
         }
 
         /// <summary>
-        /// Attempts to create a temporary folder
+        /// Show the graphical user interface
         /// </summary>
-        /// <param name="Dirname">Name of the folder to create</param>
-        /// <returns>Full path of folder created</returns>
-        static string GetTempDir(string Dirname)
+        private static void ShowUI()
         {
-            int i = 0;
-            string TempRoot = Path.Combine(Path.GetTempPath(), Dirname + "_");
-            while (true)
-            {
-                string current = string.Format("{0}{1}", TempRoot, i++);
-                try
-                {
-                    Directory.CreateDirectory(current);
-                    return current;
-                }
-                catch
-                {
-                    //you can increase i here instead if you want.
-                }
-            }
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new frmMain());
         }
+
+    }
+
+    public struct Arguments
+    {
+        public string InputFile, OutputFile;
+        public int Height;
+        public bool SingleColor, Valid;
     }
 }
