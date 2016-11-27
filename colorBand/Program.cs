@@ -148,8 +148,7 @@ Image: {6:00}:{7:00}:{8:00}",
                         }
                         SL = new StatusLine(SR.ReadLine());
                         TimeSpan Estimate = new TimeSpan(0, 0, (int)(VI.Duration.TotalSeconds / SL.Speed));
-                        //This creates a timespan with the milliseconds cut out of.
-                        TimeSpan CurrentTime = new TimeSpan(0,0,(int)((DateTime.Now.Ticks-Start.Ticks)/10000000L));
+                        TimeSpan CurrentTime = Tools.CutToSeconds(DateTime.Now.Subtract(Start));
 
                         if (SL.Frame > 0)
                         {

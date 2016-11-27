@@ -56,9 +56,10 @@
             // lblEncodingProgress
             // 
             this.lblEncodingProgress.AutoSize = true;
+            this.lblEncodingProgress.Font = new System.Drawing.Font("Courier New", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblEncodingProgress.Location = new System.Drawing.Point(12, 45);
             this.lblEncodingProgress.Name = "lblEncodingProgress";
-            this.lblEncodingProgress.Size = new System.Drawing.Size(95, 13);
+            this.lblEncodingProgress.Size = new System.Drawing.Size(160, 17);
             this.lblEncodingProgress.TabIndex = 2;
             this.lblEncodingProgress.Text = "Starting Encoder...";
             // 
@@ -66,7 +67,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(444, 168);
+            this.ClientSize = new System.Drawing.Size(444, 175);
             this.ControlBox = false;
             this.Controls.Add(this.lblEncodingProgress);
             this.Controls.Add(this.btnAbort);
@@ -75,6 +76,7 @@
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "frmEncoder";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "Encoding";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.frmEncoder_FormClosed);
             this.ResumeLayout(false);

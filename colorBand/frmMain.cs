@@ -19,7 +19,9 @@ namespace colorBand
             Tools.LogToConsole = true;
             Tools.WriteEncoder(TempPath);
             Tools.LogToConsole = false;
+#if !DEBUG
             AyrA.IO.Terminal.RemoveConsole();
+#endif
             InitializeComponent();
         }
 
@@ -92,6 +94,11 @@ namespace colorBand
 
         private void SetInfo()
         {
+            //remove quotes around file name
+            if (tbSource.Text.StartsWith("\"") || tbSource.Text.EndsWith("\""))
+            {
+                tbSource.Text = tbSource.Text.Trim('\"');
+            }
             if (File.Exists(tbSource.Text))
             {
                 VideoInfo VI = Tools.GetVideoInfo(tbSource.Text);
@@ -107,6 +114,70 @@ Frames: {5} (estimated from runtime)",
             else
             {
                 MessageBox.Show("The input file doesn't exists.", "Input file not found", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+            }
+        }
+
+        private void frmMain_DragDrop(object sender, DragEventArgs e)
+        {
+            var L = new List<string>(e.Data.GetFormats());
+            if (
+                L.Contains(DataFormats.FileDrop) ||
+                L.Contains(DataFormats.UnicodeText) ||
+                L.Contains(DataFormats.Text))
+            {
+                string[] Files;
+                if (L.Contains(DataFormats.FileDrop))
+                {
+                    //Dropped a file
+                    Files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                }
+                else if (L.Contains(DataFormats.UnicodeText))
+                {
+                    //Dropped a path in unicode
+                    Files = new string[] { e.Data.GetData(DataFormats.UnicodeText).ToString().TrimStart().Split('\n')[0].Trim() };
+                }
+                else
+                {
+                    //Dropped a path in ANSI
+                    Files = new string[] { e.Data.GetData(DataFormats.Text).ToString().TrimStart().Split('\n')[0].Trim() };
+                }
+
+                if (Files.Length > 0)
+                {
+                    tbSource.Text = Files[0];
+                    SetInfo();
+                    if (string.IsNullOrEmpty(tbDestination.Text))
+                    {
+                        AutoName();
+                    }
+                    if (Files.Length > 1)
+                    {
+                        MessageBox.Show("Only the first file was added", "Too many files", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Could not extract file names from the drop", "Input file not found", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                }
+            }
+        }
+
+        private void frmMain_DragOver(object sender, DragEventArgs e)
+        {
+            var L = new List<string>(e.Data.GetFormats());
+            if (
+                //File dropped itself
+                L.Contains(DataFormats.FileDrop) ||
+                //Path of a file dropped as unicode
+                L.Contains(DataFormats.UnicodeText) ||
+                //Path of a file dropped as ANSI
+                L.Contains(DataFormats.Text))
+            {
+                e.Effect = DragDropEffects.Copy;
+            }
+            else
+            {
+                Console.Error.WriteLine(string.Join("\r\n", L.ToArray()));
             }
         }
     }

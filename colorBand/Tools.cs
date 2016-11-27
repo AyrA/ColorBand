@@ -14,9 +14,9 @@ namespace colorBand
 
     public static class Tools
     {
+        private const long TICKFACTOR = 10000000L;
         private const string DURATION = "-show_entries format -v quiet \"{0}\"";
         private const string RESOLUTION = "-show_entries stream=width,height -select_streams v:0 -v quiet \"{0}\"";
-
         private const string FFMPEG = "-i \"{0}\" -lavfi fps=1,scale=1:{2}:flags=lanczos \"{1}\\%06d.png\"";
 
         private static string CurrentEncoder = "ffmpeg.exe";
@@ -390,6 +390,16 @@ namespace colorBand
                 Segments[Last] += "." + NewExt;
             }
             return string.Join(Path.DirectorySeparatorChar.ToString(), Segments);
+        }
+
+        /// <summary>
+        /// Cuts the millisecond part from a TimeSpan
+        /// </summary>
+        /// <param name="Source">TimeSpan</param>
+        /// <returns>TimeSpan with MilliSeconds=0</returns>
+        public static TimeSpan CutToSeconds(TimeSpan Source)
+        {
+            return new TimeSpan(0, 0, (int)(Source.Ticks/TICKFACTOR));
         }
     }
 

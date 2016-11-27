@@ -151,6 +151,7 @@
             this.tbInfo.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
                         | System.Windows.Forms.AnchorStyles.Left)
                         | System.Windows.Forms.AnchorStyles.Right)));
+            this.tbInfo.Font = new System.Drawing.Font("Courier New", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.tbInfo.Location = new System.Drawing.Point(3, 99);
             this.tbInfo.Multiline = true;
             this.tbInfo.Name = "tbInfo";
@@ -171,6 +172,7 @@
             // 
             // frmMain
             // 
+            this.AllowDrop = true;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(550, 309);
@@ -189,7 +191,9 @@
             this.MaximizeBox = false;
             this.Name = "frmMain";
             this.Text = "Frameband Generator";
+            this.DragDrop += new System.Windows.Forms.DragEventHandler(this.frmMain_DragDrop);
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.frmMain_FormClosed);
+            this.DragOver += new System.Windows.Forms.DragEventHandler(this.frmMain_DragOver);
             ((System.ComponentModel.ISupportInitialize)(this.nudHeight)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
